@@ -196,6 +196,7 @@ func (c *coordinator) fixedQualPattern(loadRate, latencyRate int) error {
 			if e != nil {
 				return fmt.Errorf("Error getting throughput replies: %v\n", e)
 			}
+			fmt.Println(throughputReplies)
 			aggThroughput := computeStatsThroughput(throughputReplies)
 			rps := getRPS(aggThroughput)
 			// Check if throughput reached
@@ -207,11 +208,11 @@ func (c *coordinator) fixedQualPattern(loadRate, latencyRate int) error {
 			}
 
 			// Check if inter-arrival is right
-			if aggThroughput.CorrectIAD == 0 {
-				tryCount += 1
-				fmt.Println("Inter-arrival is wrong")
-				continue
-			}
+			//if aggThroughput.CorrectIAD == 0 {
+			//	tryCount += 1
+			//	fmt.Println("Inter-arrival is wrong")
+			//	continue
+			//}
 			c.state = Measure
 		case Measure:
 			// Start measuring
@@ -253,7 +254,7 @@ func (c *coordinator) fixedQualPattern(loadRate, latencyRate int) error {
 				// Check if IID
 				if agg_lat.IsIid == 0 {
 					fmt.Printf("It's not IID.\n")
-					if c.samplingRate < 0.01 {
+					if c.samplingRate < 1 {
 						fmt.Println("Can't reduce sampling further")
 					} else {
 						fmt.Printf("Will reduce by %v\n", agg_lat.ToReduceSampling)
@@ -265,13 +266,17 @@ func (c *coordinator) fixedQualPattern(loadRate, latencyRate int) error {
 				fmt.Println("It's iid")
 
 				// Check CI
-				//if int(agg_lat.P99_k-agg_lat.P99_i) > (c.ciSize * 1000) {
-				//	fmt.Printf("CI size = %v, target = %v\n",
-				//		agg_lat.P99_k-agg_lat.P99_i, c.ciSize)
-				//	c.samples += samplesStep
-				//	tryCount += 1
-				//	continue
-				//}
+				if int(agg_lat.P99_k-agg_lat.P99_i) > (c.ciSize * 1000) {
+					if c.samples > 50000 {
+						fmt.Println("Wrong CI but making progress")
+					} else {
+						fmt.Printf("CI size = %v, target = %v\n",
+							agg_lat.P99_k-agg_lat.P99_i, c.ciSize)
+						c.samples += samplesStep
+						tryCount += 1
+						continue
+					}
+				}
 				fmt.Println("CIs are ok")
 			}
 

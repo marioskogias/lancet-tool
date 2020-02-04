@@ -117,7 +117,7 @@ func runAgent(dst, privateKey string, args string) (*ssh.Session, error) {
 	dstPath := path.Join("/tmp", currentUser.Username, "lancet")
 	venvPath := path.Join(dstPath, "venv/bin/activate")
 
-	cmd := fmt.Sprintf("sudo bash -c 'ulimit -c unlimited && source %s && lancet -- %s'",
+	cmd := fmt.Sprintf("sudo bash -c 'source %s && ulimit -c unlimited && lancet -- %s'",
 		venvPath, args)
 	if _, err := fmt.Printf("My command '%s'\n", cmd); err != nil {
 		return nil, err

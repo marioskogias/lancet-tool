@@ -197,8 +197,6 @@ struct byte_req_pair stss_consume_response(struct application_protocol *proto,
 	char *tmp;
 	int processed;
 
-	printf("Consume response\n");
-
 	assert(response->iov_len >= sizeof(long));
 	tmp = response->iov_base;
 	while (1) {
@@ -225,11 +223,11 @@ static int stss_init(char *proto, struct application_protocol *app_proto)
 
 	saveptr = proto;
 	token = strtok_r(saveptr, "_", &saveptr);
-	if (strncmp(token, "stss", 4) == 0)
-		data->replicated = 0;
-	else if (strncmp(token, "stssr", 5) == 0)
+	if (strncmp(token, "stssr", 5) == 0) {
 		data->replicated = 1;
-	else
+	} else if (strncmp(token, "stss", 4) == 0) {
+		data->replicated = 0;
+	} else
 		assert(0);
 	token = strtok_r(saveptr, "_", &saveptr);
 	data->time_gen = init_rand(token);
