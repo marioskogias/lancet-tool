@@ -299,6 +299,63 @@ func (c *coordinator) fixedQualPattern(loadRate, latencyRate int) error {
 	return fmt.Errorf("Max re-tries or max time reached\n")
 }
 
+func (c *coordinator) fixedTimePattern(loadRate, latencyRate, duration int) error {
+	fmt.Printf("Load rate is %v\n", loadRate)
+	fmt.Printf("Latency rate = %v\n", latencyRate)
+	if len(c.symAgents) == 0 && len(c.thAgents) == 0 && len(c.ltAgents) == 0 {
+		return fmt.Errorf("There are no agents")
+	}
+
+	err := c.load(loadRate, latencyRate)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Will run for %v sec\n", duration)
+
+	err = startMeasure(append(append(c.thAgents, c.ltAgents...), c.symAgents...), c.samples, 100)
+	if err != nil {
+		return fmt.Errorf("Error starting measuring: %v\n", err)
+	}
+	time.Sleep(time.Duration(duration) * time.Second)
+
+	var throughputReplies []*C.struct_throughput_reply
+	var latencyReplies []*C.struct_latency_reply
+	var e error
+
+	if len(c.thAgents) > 0 {
+		throughputReplies, e = reportThroughput(c.thAgents)
+		if e != nil {
+			return fmt.Errorf("Error getting throughput replies: %v\n", e)
+		}
+
+	} else {
+		throughputReplies = make([]*C.struct_throughput_reply, 0)
+	}
+
+	if len(c.ltAgents) > 0 || len(c.symAgents) > 0 {
+		latencyReplies, e = reportLatency(append(c.ltAgents, c.symAgents...))
+		if e != nil {
+			return fmt.Errorf("Error getting latency replies: %v\n", e)
+		}
+
+		for _, reply := range latencyReplies {
+			latAgentThroughput := &reply.Th_data
+			throughputReplies = append(throughputReplies, latAgentThroughput)
+		}
+	}
+
+	agg_throughput := computeStatsThroughput(throughputReplies)
+	printThroughputStats(agg_throughput)
+
+	if len(c.ltAgents) > 0 || len(c.symAgents) > 0 {
+		aggLatency := computeStatsLatency(latencyReplies)
+		fmt.Println("Aggregate latency")
+		printLatencyStats(aggLatency)
+	}
+	return nil
+}
+
 func (c *coordinator) stepPattern(startLoad, endLoad, step, latencyRate int, pattern string) error {
 	fmt.Printf("%v %v %v\n", startLoad, endLoad, step)
 	loadRate := startLoad
@@ -321,6 +378,17 @@ func (c *coordinator) stepPattern(startLoad, endLoad, step, latencyRate int, pat
 	return nil
 }
 
+func (c *coordinator) fixedSteadyPattern(loadRate, repetitions int) error {
+	var err error
+	for i := 0; i < repetitions; i++ {
+		err = c.fixedTimePattern(loadRate, 0, 1)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+	return nil
+}
+
 func (c *coordinator) runExp(pattern string, latencyRate, ciSize int) error {
 
 	patternArgs := strings.Split(pattern, ":")
@@ -331,7 +399,7 @@ func (c *coordinator) runExp(pattern string, latencyRate, ciSize int) error {
 	if len(c.ltAgents) == 0 {
 		latencyRate = 0
 	}
-	if patternArgs[0] == "fixed" || patternArgs[0] == "fixedQual" {
+	if patternArgs[0] == "fixed" || patternArgs[0] == "fixedQual" || patternArgs[0] == "fixedSteady" {
 		loadRate, err := strconv.Atoi(patternArgs[1])
 		if err != nil {
 			return fmt.Errorf("Error parsing load\n")
@@ -352,6 +420,8 @@ func (c *coordinator) runExp(pattern string, latencyRate, ciSize int) error {
 		}
 		if patternArgs[0] == "fixed" {
 			return c.fixedPattern(loadRate, latencyRate)
+		} else if patternArgs[0] == "fixedSteady" {
+			return c.fixedSteadyPattern(loadRate, 100)
 		} else {
 			return c.fixedQualPattern(loadRate, latencyRate)
 		}
